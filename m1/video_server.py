@@ -1,10 +1,16 @@
 #!/usr/bin/env python3
 
 import os
-from vilib import Vilib
 import signal
 import sys
 from time import sleep, strftime, localtime
+
+try:
+    from vilib import Vilib
+    print("Successfully imported Vilib")
+except Exception as e:
+    print(f"Error importing Vilib: {e}")
+    raise
 
 class VideoServer:
     def __init__(self, vflip=False, hflip=False, enable_web=True, enable_local=True):

@@ -68,6 +68,35 @@ class PiServer:
                 data = json.loads(msg.payload.decode())
                 print("Received control request:", data)
                 
+                # Handle motor control if x or y is present
+                if ('speed' in data or 'turn' in data) and self.px is not None:
+                    try:
+                        x = data.get('turn', 0)  # For steering
+                        y = data.get('speed', 0)  # For forward/backward movement
+                        
+                        # Convert x to steering angle (-40 to 40 degrees)
+                        # Assuming x is in range -100 to 100
+                        steering_angle = x * 15 # +/- 15 degrees
+                        
+                        # Set steering angle using servo 3
+                        self.px.set_dir_servo_angle(steering_angle)
+                        
+                        # Convert y to motor speed (-100 to 100)
+                        # Negative y means forward, positive y means backward
+                        # Assuming y is in range -100 to 100
+                        motor_speed = -y*50
+                        
+                        if motor_speed > 0:
+                            self.px.forward(motor_speed)
+                        elif motor_speed < 0:
+                            self.px.backward(abs(motor_speed))
+                        else:
+                            self.px.stop()
+                            
+                        print(f"Motor control - steering: {steering_angle}°, speed: {motor_speed}")
+                    except Exception as e:
+                        print(f"Error handling motor control: {e}")
+                
                 # Handle camera control if pan or tilt is present
                 if ('pan' in data or 'tilt' in data) and self.px is not None:
                     try:
