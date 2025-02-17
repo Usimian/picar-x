@@ -24,7 +24,7 @@ class PiServer:
         self.port = port
         self.client = None
         self.running = False
-
+        
         # Initialize Picarx
         try:
             self.px = Picarx()
@@ -58,7 +58,8 @@ class PiServer:
                 # Send current status with 2 significant digits
                 response = {
                     "Vb": float(f"{self.Vb:.2f}"),  # Battery voltage from Picarx
-                    "mock_status": MOCK_STATUS
+                    "mock_status": MOCK_STATUS,
+                    "video_url": "http://localhost:9000/mjpg"
                 }
                 self.client.publish(TOPIC_RESPONSE, json.dumps(response))
                 print(f"Published status response: {response}")
@@ -92,12 +93,11 @@ class PiServer:
             print(f"Error processing message: {e}")
 
     def start(self):
+        """Start the MQTT client and connect to broker"""
         try:
             self.client.connect(self.broker, self.port, 60)
-            self.running = True
-            
-            # Start the MQTT loop in a background thread
             self.client.loop_start()
+            self.running = True
             
             # Start the publishing loop in a separate thread
             self.publish_thread = threading.Thread(target=self.publish_data)
@@ -105,10 +105,11 @@ class PiServer:
             
             print(f"MQTT Server started on {self.broker}:{self.port}")
         except Exception as e:
-            print(f"Failed to start server: {e}")
-            self.stop()
+            print(f"Error starting server: {e}")
+            self.running = False
 
     def stop(self):
+        """Stop the server and cleanup"""
         self.running = False
         if self.client:
             self.client.loop_stop()
@@ -127,12 +128,12 @@ class PiServer:
 
 
 # Usage example:
-if __name__ == "__main__":
-    server = PiServer()
-    server.start()
+# if __name__ == "__main__":
+#     server = PiServer()
+#     server.start()
     
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        server.stop()
+#     try:
+#         while True:
+#             time.sleep(1)
+#     except KeyboardInterrupt:
+#         server.stop()
