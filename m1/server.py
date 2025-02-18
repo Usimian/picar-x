@@ -3,6 +3,7 @@ import json
 import threading
 import time
 from picarx import Picarx  # Import Picarx
+from robot_hat import ADC  # Import ADC
 
 # Hardware mock status flags
 MOCK_STATUS = {
@@ -32,6 +33,13 @@ class PiServer:
             print(f"Warning: Failed to initialize Picarx: {e}")
             self.px = None
 
+        # Initialize ADC for battery monitoring
+        try:
+            self.adc = ADC('A4')
+        except Exception as e:
+            print(f"Warning: Failed to initialize ADC: {e}")
+            self.adc = None
+
         # Client variables for transfer
         self.slider_val = 0
         self.Vb = 0
@@ -39,6 +47,34 @@ class PiServer:
         
         # MQTT setup
         self.setup_mqtt()
+        
+        # Start battery voltage update thread
+        self.voltage_thread = threading.Thread(target=self._update_battery_voltage)
+        self.voltage_thread.daemon = True
+        self.voltage_thread.start()
+
+    def _get_battery_voltage(self):
+        """Read battery voltage from ADC"""
+        try:
+            if self.adc is None:
+                return 0.0
+            raw_value = self.adc.read()
+            # Convert ADC value to voltage (assuming 3.3V reference)
+            # and account for voltage divider if present
+            voltage = raw_value * 3.3 / 4095 * 3  # multiply by 3 if using voltage divider
+            return round(voltage, 2)
+        except Exception as e:
+            print(f"Error reading ADC: {e}")
+            return 0.0
+
+    def _update_battery_voltage(self):
+        """Update battery voltage in a loop"""
+        while self.running:
+            try:
+                self.Vb = self._get_battery_voltage()
+            except Exception as e:
+                print(f"Error updating battery voltage: {e}")
+            time.sleep(1)  # Update every second
 
     def setup_mqtt(self):
         self.client = mqtt.Client()
@@ -53,20 +89,20 @@ class PiServer:
 
     def on_message(self, client, userdata, msg):
         try:
-            print(f"\n--- Received Message: {msg.topic} ---")
+            # print(f"\n--- Received Message: {msg.topic} ---")
             if msg.topic == TOPIC_STATUS:
                 # Send current status with 2 significant digits
                 response = {
-                    "Vb": float(f"{self.Vb:.2f}"),  # Battery voltage from Picarx
+                    "Vb": float(f"{self.Vb:.2f}"),  # Battery voltage from ADC
                     "mock_status": MOCK_STATUS,
-                    "video_url": "http://localhost:9000/mjpg"
+                    "video_url": "http://192.168.1.167:9000/mjpg"
                 }
                 self.client.publish(TOPIC_RESPONSE, json.dumps(response))
                 print(f"Published status response: {response}")
             elif msg.topic == TOPIC_CONTROL:
                 # Handle control messages
                 data = json.loads(msg.payload.decode())
-                print("Received control request:", data)
+                # print("Received control request:", data)
                 
                 # Handle motor control if x or y is present
                 if ('speed' in data or 'turn' in data) and self.px is not None:
@@ -84,7 +120,7 @@ class PiServer:
                         # Convert y to motor speed (-100 to 100)
                         # Negative y means forward, positive y means backward
                         # Assuming y is in range -100 to 100
-                        motor_speed = -y*50
+                        motor_speed = -y*100.0
                         
                         if motor_speed > 0:
                             self.px.forward(motor_speed)
@@ -92,8 +128,7 @@ class PiServer:
                             self.px.backward(abs(motor_speed))
                         else:
                             self.px.stop()
-                            
-                        print(f"Motor control - steering: {steering_angle}°, speed: {motor_speed}")
+                        print(f"Steering: {steering_angle:.0f}°, Speed: {motor_speed:.0f}")
                     except Exception as e:
                         print(f"Error handling motor control: {e}")
                 
@@ -110,7 +145,7 @@ class PiServer:
                         # Set camera angles
                         self.px.set_cam_pan_angle(pan_angle)
                         self.px.set_cam_tilt_angle(tilt_angle)
-                        print(f"Camera angles set - pan: {pan_angle}, tilt: {tilt_angle}")
+                        print(f"Pan: {pan_angle:.0f}, Tilt: {tilt_angle:.0f}")
                     except Exception as e:
                         print(f"Error handling camera control: {e}")
                 
@@ -127,11 +162,6 @@ class PiServer:
             self.client.connect(self.broker, self.port, 60)
             self.client.loop_start()
             self.running = True
-            
-            # Start the publishing loop in a separate thread
-            self.publish_thread = threading.Thread(target=self.publish_data)
-            self.publish_thread.start()
-            
             print(f"MQTT Server started on {self.broker}:{self.port}")
         except Exception as e:
             print(f"Error starting server: {e}")
@@ -145,24 +175,14 @@ class PiServer:
             self.client.disconnect()
         print("Server stopped")
 
-    def publish_data(self):
-        while self.running:
-            try:
-                # Only publish on status request now
-                time.sleep(0.1)  # Sleep to prevent busy loop
-            except Exception as e:
-                print(f"Error in publish loop: {e}")
-                if not self.running:
-                    break
-
 
 # Usage example:
-# if __name__ == "__main__":
-#     server = PiServer()
-#     server.start()
-    
-#     try:
-#         while True:
-#             time.sleep(1)
-#     except KeyboardInterrupt:
-#         server.stop()
+if __name__ == "__main__":
+    server = PiServer()
+    try:
+        server.start()
+        print("\nPress Ctrl+C to stop the server")
+        while server.running:
+            time.sleep(1)
+    except KeyboardInterrupt:
+        server.stop()
