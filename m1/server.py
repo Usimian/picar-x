@@ -95,7 +95,7 @@ class PiServer:
                 response = {
                     "Vb": float(f"{self.Vb:.2f}"),  # Battery voltage from ADC
                     "mock_status": MOCK_STATUS,
-                    "video_url": "http://192.168.1.167:9000/mjpg"
+                    "distance": float(f"{self.px.get_distance():.2f}") if self.px else None
                 }
                 self.client.publish(TOPIC_RESPONSE, json.dumps(response))
                 print(f"Published status response: {response}")
@@ -120,7 +120,7 @@ class PiServer:
                         # Convert y to motor speed (-100 to 100)
                         # Negative y means forward, positive y means backward
                         # Assuming y is in range -100 to 100
-                        motor_speed = -y*100.0
+                        motor_speed = y*100.0
                         
                         if motor_speed > 0:
                             self.px.forward(motor_speed)
