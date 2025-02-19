@@ -17,6 +17,7 @@ MQTT_BROKER = "localhost"  # MQTT broker address
 MQTT_PORT = 1883  # Default MQTT port
 TOPIC_CONTROL = "picar/control_request"  # Topic for receiving control commands
 TOPIC_STATUS = "picar/status_request"  # Topic for receiving status requests
+TOPIC_STATUS_INFO = "picar/status_info"  # Topic for receiving status info requests
 TOPIC_RESPONSE = "picar/status_response"  # Topic for sending status responses
 
 
@@ -45,6 +46,7 @@ class PiServer:
         self.slider_val = 0
         self.Vb = 0
         self.Pos = 0
+        self.last_distance = 0.0  # Track last measured distance
         
         # MQTT setup
         self.setup_mqtt()
@@ -85,18 +87,37 @@ class PiServer:
     def on_connect(self, client, userdata, flags, rc):
         print(f"Connected to MQTT broker with result code {rc}")
         # Subscribe to control and status topics on connect/reconnect
-        self.client.subscribe([(TOPIC_CONTROL, 0), (TOPIC_STATUS, 0)])
-        print(f"Subscribed to topics: {TOPIC_CONTROL}, {TOPIC_STATUS}")
+        self.client.subscribe([
+            (TOPIC_CONTROL, 0), 
+            (TOPIC_STATUS, 0),
+            (TOPIC_STATUS_INFO, 0)
+        ])
+        print(f"Subscribed to topics: {TOPIC_CONTROL}, {TOPIC_STATUS}, {TOPIC_STATUS_INFO}")
 
     def on_message(self, client, userdata, msg):
         try:
             # print(f"\n--- Received Message: {msg.topic} ---")
-            if msg.topic == TOPIC_STATUS:
+            if msg.topic == TOPIC_STATUS_INFO:
+                # Get current distance measurement
+                if self.px:
+                    try:
+                        self.last_distance = self.px.get_distance()
+                    except Exception as e:
+                        print(f"Error reading distance: {e}")
+                
+                # Send status response with battery and distance
+                response = {
+                    "Vb": float(f"{self.Vb:.2f}"),  # Battery voltage from ADC
+                    "distance": float(f"{self.last_distance:.2f}")  # Last measured distance
+                }
+                self.client.publish(TOPIC_RESPONSE, json.dumps(response))
+                print(f"Published status info response: {response}")
+            
+            elif msg.topic == TOPIC_STATUS:
                 # Send current status with 2 significant digits
                 response = {
                     "Vb": float(f"{self.Vb:.2f}"),  # Battery voltage from ADC
-                    "mock_status": MOCK_STATUS,
-                    "distance": float(f"{self.px.get_distance():.2f}") if self.px else None
+                    "mock_status": MOCK_STATUS
                 }
                 self.client.publish(TOPIC_RESPONSE, json.dumps(response))
                 print(f"Published status response: {response}")

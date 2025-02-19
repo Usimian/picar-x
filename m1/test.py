@@ -22,7 +22,7 @@ except Exception as e:
     print(f"Error initializing ADC: {e}")
     adc = None
 
-# Initialize servers
+# Initialize servers and shared objects
 mqtt_server = None
 video_server = None
 
@@ -66,13 +66,36 @@ def get_ip_address():
         print(f"Error getting IP address: {e}")
         return "localhost"
 
+def measure_distance():
+    """Measure distance from ultrasonic sensor at 20Hz"""
+    global mqtt_server
+    if mqtt_server is None or mqtt_server.px is None:
+        print("Error: Picarx not initialized")
+        return
+
+    interval = 0.05  # 20Hz measurement rate
+    SAFETY_DISTANCE = 10  # cm
+    
+    while True:
+        try:
+            distance = mqtt_server.px.get_distance()
+            # Safety check - stop if too close to obstacle
+            if distance is not None and distance < SAFETY_DISTANCE:
+                # Stop the car by setting speed to 0
+                mqtt_server.px.forward(0)
+                print(f"Safety stop! Obstacle detected at {distance:.1f} cm")
+            time.sleep(interval)
+        except Exception as e:
+            print(f"Error measuring distance: {e}")
+            time.sleep(interval)
+
 if __name__ == "__main__":
     try:
         print("Starting PiCar-X servers...")
 
         ip_address = get_ip_address()
-
-        mqtt_server = PiServer()
+        
+        mqtt_server = PiServer()    # MQTT messaging system
         mqtt_server.start()
 
         video_server = VideoServer(vflip=False, hflip=False)
@@ -83,6 +106,13 @@ if __name__ == "__main__":
         battery_voltage_thread = threading.Thread(target=update_battery_voltage)
         battery_voltage_thread.daemon = True
         battery_voltage_thread.start()
+
+        if mqtt_server.px is not None:
+            distance_thread = threading.Thread(target=measure_distance)
+            distance_thread.daemon = True
+            distance_thread.start()
+        else:
+            print("Warning: Distance measurement disabled due to Picarx initialization failure")
 
         print(f"\nServers are running. Press Ctrl+C to stop.")
         print(f"Video stream available at: http://{ip_address}:9000/mjpg")
