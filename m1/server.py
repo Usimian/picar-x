@@ -10,6 +10,7 @@ MOCK_STATUS = {
     'gpio': False,        # GPIO/Motors mock status
     'i2c': False,         # I2C bus mock status
     'adc': False,         # ADC mock status
+    'camera': False,      # Camera test pattern status
 }
 
 MQTT_BROKER = "localhost"  # MQTT broker address
@@ -164,25 +165,13 @@ class PiServer:
             self.running = True
             print(f"MQTT Server started on {self.broker}:{self.port}")
         except Exception as e:
-            print(f"Error starting server: {e}")
+            print(f"Error starting MQTT server: {e}")
             self.running = False
 
     def stop(self):
-        """Stop the server and cleanup"""
+        """Stop the mqtt_server and cleanup"""
         self.running = False
         if self.client:
             self.client.loop_stop()
             self.client.disconnect()
-        print("Server stopped")
-
-
-# Usage example:
-if __name__ == "__main__":
-    server = PiServer()
-    try:
-        server.start()
-        print("\nPress Ctrl+C to stop the server")
-        while server.running:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        server.stop()
+        print("mqtt_server stopped")

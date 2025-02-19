@@ -224,6 +224,12 @@ class VideoServer:
                 # Initialize with test pattern
                 test_pattern = self.generate_test_pattern()
                 self.vilib.frame = test_pattern
+                # Update mock status to indicate test pattern is in use
+                try:
+                    from server import MOCK_STATUS
+                    MOCK_STATUS['camera'] = True
+                except ImportError:
+                    pass
             
             self.vilib.display(local=self.enable_local, web=self.enable_web)
             self.running = True
@@ -255,6 +261,12 @@ class VideoServer:
                 self.vilib.camera_close()
             elif not HEADLESS:
                 cv2.destroyAllWindows()
+                # Reset mock status when stopping test pattern
+                try:
+                    from server import MOCK_STATUS
+                    MOCK_STATUS['camera'] = False
+                except ImportError:
+                    pass
             print("Video server stopped")
         except Exception as e:
             print(f"Error stopping video server: {e}")

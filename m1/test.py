@@ -9,8 +9,8 @@ import socket
 
 def signal_handler(sig, frame):
     print('\nStopping servers...')
-    if server:
-        server.stop()
+    if mqtt_server:
+        mqtt_server.stop()
     if video_server:
         video_server.stop()
     sys.exit(0)
@@ -23,7 +23,7 @@ except Exception as e:
     adc = None
 
 # Initialize servers
-server = None
+mqtt_server = None
 video_server = None
 
 def get_battery_voltage():
@@ -46,7 +46,7 @@ def update_battery_voltage():
         try:
             # Get battery voltage from ADC
             voltage = get_battery_voltage()
-            server.Vb = voltage
+            mqtt_server.Vb = voltage
             time.sleep(1)  # Update every second
         except Exception as e:
             print(f"Error updating battery voltage: {e}")
@@ -68,40 +68,32 @@ def get_ip_address():
 
 if __name__ == "__main__":
     try:
-        print("Starting PiCar-X Servers...")
-        
-        # Get IP address
+        print("Starting PiCar-X servers...")
+
         ip_address = get_ip_address()
-        
-        # Start MQTT server
-        server = PiServer()
-        server.start()
-        
-        # Start video server
+
+        mqtt_server = PiServer()
+        mqtt_server.start()
+
         video_server = VideoServer(vflip=False, hflip=False)
         video_server.start()
-        
-        # Set up signal handler for graceful shutdown
+
         signal.signal(signal.SIGINT, signal_handler)
-        
-        # Start battery voltage update thread
-        voltage_thread = threading.Thread(target=update_battery_voltage)
-        voltage_thread.daemon = True
-        voltage_thread.start()
-        
-        print("\nServers are running. Press Ctrl+C to stop.")
-        print(f"Video stream available at:")
-        print(f"  http://{ip_address}:9000/mjpg")
-        print(f"  http://localhost:9000/mjpg")
-        
-        # Keep the main thread alive
+
+        battery_voltage_thread = threading.Thread(target=update_battery_voltage)
+        battery_voltage_thread.daemon = True
+        battery_voltage_thread.start()
+
+        print(f"\nServers are running. Press Ctrl+C to stop.")
+        print(f"Video stream available at: http://{ip_address}:9000/mjpg")
+
         while True:
             time.sleep(1)
-            
+
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        if server:
-            server.stop()
+        if mqtt_server:
+            mqtt_server.stop()
         if video_server:
             video_server.stop()
