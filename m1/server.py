@@ -150,7 +150,7 @@ class PiServer:
                             self.px.backward(abs(motor_speed))
                         else:
                             self.px.stop()
-                        print(f"Steering: {steering_angle:.0f}°, Speed: {motor_speed:.0f}")
+                        # print(f"Steering: {steering_angle:.0f}°, Speed: {motor_speed:.0f}")
                     except Exception as e:
                         print(f"Error handling motor control: {e}")
                 
@@ -167,7 +167,7 @@ class PiServer:
                         # Set camera angles
                         self.px.set_cam_pan_angle(pan_angle)
                         self.px.set_cam_tilt_angle(tilt_angle)
-                        print(f"Pan: {pan_angle:.0f}, Tilt: {tilt_angle:.0f}")
+                        # print(f"Pan: {pan_angle:.0f}, Tilt: {tilt_angle:.0f}")
                     except Exception as e:
                         print(f"Error handling camera control: {e}")
                 

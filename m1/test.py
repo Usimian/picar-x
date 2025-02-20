@@ -83,7 +83,7 @@ def measure_distance():
             if distance is not None and distance < SAFETY_DISTANCE:
                 # Stop the car by setting speed to 0
                 mqtt_server.px.forward(0)
-                print(f"Safety stop! Obstacle detected at {distance:.1f} cm")
+                # print(f"Safety stop! Obstacle detected at {distance:.1f} cm")
             time.sleep(interval)
         except Exception as e:
             print(f"Error measuring distance: {e}")
