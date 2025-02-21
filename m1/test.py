@@ -6,6 +6,8 @@ import signal
 import sys
 import threading
 import socket
+from time import sleep
+
 
 def signal_handler(sig, frame):
     print('\nStopping servers...')
@@ -15,42 +17,9 @@ def signal_handler(sig, frame):
         video_server.stop()
     sys.exit(0)
 
-# Initialize ADC for battery monitoring
-try:
-    adc = ADC('A4')
-except Exception as e:
-    print(f"Error initializing ADC: {e}")
-    adc = None
-
 # Initialize servers and shared objects
 mqtt_server = None
 video_server = None
-
-def get_battery_voltage():
-    """Read battery voltage from ADC"""
-    try:
-        if adc is None:
-            return 0.0
-        raw_value = adc.read()
-        # Convert ADC value to voltage (assuming 3.3V reference)
-        # and account for voltage divider if present
-        voltage = raw_value * 3.3 / 4095 * 3  # multiply by 3 if using voltage divider
-        return round(voltage, 2)
-    except Exception as e:
-        print(f"Error reading ADC: {e}")
-        return 0.0
-
-def update_battery_voltage():
-    """Update battery voltage reading periodically"""
-    while True:
-        try:
-            # Get battery voltage from ADC
-            voltage = get_battery_voltage()
-            mqtt_server.Vb = voltage
-            time.sleep(1)  # Update every second
-        except Exception as e:
-            print(f"Error updating battery voltage: {e}")
-            time.sleep(1)
 
 def get_ip_address():
     """Get the primary IP address of the device"""
@@ -102,10 +71,6 @@ if __name__ == "__main__":
         video_server.start()
 
         signal.signal(signal.SIGINT, signal_handler)
-
-        battery_voltage_thread = threading.Thread(target=update_battery_voltage)
-        battery_voltage_thread.daemon = True
-        battery_voltage_thread.start()
 
         if mqtt_server.px is not None:
             distance_thread = threading.Thread(target=measure_distance)

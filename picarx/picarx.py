@@ -256,18 +256,6 @@ class Picarx(object):
         self.set_cam_tilt_angle(0)
         self.set_cam_pan_angle(0)
 
-    def get_battery_voltage(self):
-        """
-        Get the current battery voltage from ADC channel 4
-        Returns:
-            float: Battery voltage in volts
-        """
-        adc = ADC('A4')
-        raw_value = adc.read()
-        # Convert ADC value to voltage (assuming 3.3V reference)
-        # and account for voltage divider if present
-        voltage = raw_value * 3.3 / 4095 * 3  # multiply by 3 if using voltage divider
-        return round(voltage, 2)
 
 if __name__ == "__main__":
     px = Picarx()

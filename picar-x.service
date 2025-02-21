@@ -1,0 +1,17 @@
+[Unit]
+Description=PiCar-X Service
+After=network.target gpio.target i2c.target basic.target time-sync.target
+Wants=network.target gpio.target i2c.target
+Requires=basic.target
+
+[Service]
+Type=simple
+User=root
+WorkingDirectory=/home/mw/picar-x
+ExecStartPre=/bin/sleep 10
+ExecStart=/usr/bin/python3 /home/mw/picar-x/m1/test.py
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

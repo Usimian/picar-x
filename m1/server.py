@@ -3,9 +3,9 @@ import json
 import threading
 import time
 from picarx import Picarx  # Import Picarx
-from robot_hat import ADC  # Import ADC
+from robot_hat import ADC
+from gpiozero import LED
 
-# Hardware mock status flags
 MOCK_STATUS = {
     'gpio': False,        # GPIO/Motors mock status
     'i2c': False,         # I2C bus mock status
@@ -28,6 +28,27 @@ class PiServer:
         self.client = None
         self.running = False
         
+        # Initialize LED for battery monitoring
+        try:
+            self.battery_led = LED(26)
+        except Exception as e:
+            print(f"Warning: Failed to initialize LED: {e}")
+            self.battery_led = None
+
+        # if self.battery_led:
+        #     self.battery_led.on()
+        #     time.sleep(0.1)
+        #     self.battery_led.off()
+        #     time.sleep(0.2)
+        #     self.battery_led.on()
+        #     time.sleep(0.1)
+        #     self.battery_led.off()
+        #     time.sleep(0.2)
+        #     self.battery_led.on()
+        #     time.sleep(0.1)
+        #     self.battery_led.off()
+        #     time.sleep(0.2)
+
         # Initialize Picarx
         try:
             self.px = Picarx()
@@ -51,14 +72,18 @@ class PiServer:
         # MQTT setup
         self.setup_mqtt()
         
-        # Start battery voltage update thread
+        # Create battery voltage update thread
         self.voltage_thread = threading.Thread(target=self._update_battery_voltage)
         self.voltage_thread.daemon = True
-        self.voltage_thread.start()
 
     def _get_battery_voltage(self):
         """Read battery voltage from ADC"""
         try:
+            if self.battery_led:
+                self.battery_led.on()    # Blink LED to indicate battery voltage reading
+                time.sleep(0.1)
+                self.battery_led.off()
+
             if self.adc is None:
                 return 0.0
             raw_value = self.adc.read()
@@ -184,6 +209,8 @@ class PiServer:
             self.client.connect(self.broker, self.port, 60)
             self.client.loop_start()
             self.running = True
+            # Start battery voltage monitoring thread
+            self.voltage_thread.start()
             print(f"MQTT Server started on {self.broker}:{self.port}")
         except Exception as e:
             print(f"Error starting MQTT server: {e}")
