@@ -10,16 +10,14 @@ from time import sleep
 
 
 def signal_handler(sig, frame):
-    print('\nStopping servers...')
-    if mqtt_server:
-        mqtt_server.stop()
-    if video_server:
-        video_server.stop()
+    cleanup()
     sys.exit(0)
 
 # Initialize servers and shared objects
 mqtt_server = None
 video_server = None
+distance_thread_running = True  # Global flag to control distance thread
+_cleanup_done = False  # Flag to track if cleanup has been done
 
 def get_ip_address():
     """Get the primary IP address of the device"""
@@ -37,7 +35,7 @@ def get_ip_address():
 
 def measure_distance():
     """Measure distance from ultrasonic sensor at 20Hz"""
-    global mqtt_server
+    global mqtt_server, distance_thread_running
     if mqtt_server is None or mqtt_server.px is None:
         print("Error: Picarx not initialized")
         return
@@ -45,20 +43,45 @@ def measure_distance():
     interval = 0.05  # 20Hz measurement rate
     SAFETY_DISTANCE = 10  # cm
     
-    while True:
+    while distance_thread_running:  # Use our own control flag
         try:
-            distance = mqtt_server.px.get_distance()
-            # Safety check - stop if too close to obstacle
-            if distance is not None and distance < SAFETY_DISTANCE:
-                # Stop the car by setting speed to 0
-                mqtt_server.px.forward(0)
-                # print(f"Safety stop! Obstacle detected at {distance:.1f} cm")
+            if mqtt_server and mqtt_server.px:  # Check if server and px are still available
+                distance = mqtt_server.px.get_distance()
+                # Safety check - stop if too close to obstacle
+                if distance is not None and distance < SAFETY_DISTANCE:
+                    # Stop the car by setting speed to 0
+                    mqtt_server.px.forward(0)
             time.sleep(interval)
         except Exception as e:
-            print(f"Error measuring distance: {e}")
+            if distance_thread_running:  # Only print error if we're still supposed to be running
+                print(f"Error measuring distance: {e}")
             time.sleep(interval)
 
+def cleanup():
+    """Clean shutdown of all services"""
+    global distance_thread_running, _cleanup_done
+    
+    # Only cleanup once
+    if _cleanup_done:
+        return
+    _cleanup_done = True
+    
+    print('\nStopping services...')
+    
+    # First stop the distance thread
+    distance_thread_running = False
+    if 'distance_thread' in globals() and distance_thread:
+        time.sleep(0.2)  # Give the thread time to stop
+    print("Distance thread stopped")
+    
+    # Then stop the servers
+    if mqtt_server:
+        mqtt_server.stop()
+    if video_server:
+        video_server.stop()
+
 if __name__ == "__main__":
+    distance_thread = None  # Initialize thread variable
     try:
         print("Starting PiCar-X servers...")
 
@@ -88,7 +111,4 @@ if __name__ == "__main__":
     except Exception as e:
         print(f"Error: {e}")
     finally:
-        if mqtt_server:
-            mqtt_server.stop()
-        if video_server:
-            video_server.stop()
+        cleanup()

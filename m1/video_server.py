@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 
 import os
-import signal
 import sys
 from time import sleep, strftime, localtime
 import cv2
@@ -129,9 +128,6 @@ class VideoServer:
         self.running = False
         self.using_test_pattern = not HAS_VILIB
         
-        # Set up signal handler for graceful shutdown
-        signal.signal(signal.SIGINT, self._signal_handler)
-        
         # Get user home directory for photos
         user = os.getlogin()
         self.photo_path = os.path.expanduser(f'~{user}/Pictures/picar-x/')
@@ -252,24 +248,19 @@ class VideoServer:
     def stop(self):
         """Stop the video server"""
         self.running = False
-        try:
-            # Wait for test pattern thread to finish
-            if self._test_pattern_thread is not None:
-                self._test_pattern_thread.join(timeout=1.0)
-            
-            if not self.using_test_pattern:
-                self.vilib.camera_close()
-            elif not HEADLESS:
-                cv2.destroyAllWindows()
-                # Reset mock status when stopping test pattern
-                try:
-                    from server import MOCK_STATUS
-                    MOCK_STATUS['camera'] = False
-                except ImportError:
-                    pass
-            print("Video server stopped")
-        except Exception as e:
-            print(f"Error stopping video server: {e}")
+        
+        # Wait for test pattern thread to stop
+        if self._test_pattern_thread and self._test_pattern_thread.is_alive():
+            self._test_pattern_thread.join(timeout=1.0)
+        
+        if self.using_test_pattern:
+            if hasattr(self.vilib, '_web_server') and self.vilib._web_server:
+                self.vilib._web_server.shutdown()
+                self.vilib._web_server.server_close()
+        else:
+            self.vilib.camera_close()
+        
+        print("Video server stopped")
 
     def take_photo(self):
         """Take a photo and save it
@@ -295,12 +286,6 @@ class VideoServer:
         except Exception as e:
             print(f"Error taking photo: {e}")
             return None
-
-    def _signal_handler(self, sig, frame):
-        """Handle shutdown signals"""
-        print('\nStopping video server...')
-        self.stop()
-        sys.exit(0)
 
 if __name__ == "__main__":
     # Example usage

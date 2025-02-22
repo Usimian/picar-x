@@ -35,20 +35,6 @@ class PiServer:
             print(f"Warning: Failed to initialize LED: {e}")
             self.battery_led = None
 
-        # if self.battery_led:
-        #     self.battery_led.on()
-        #     time.sleep(0.1)
-        #     self.battery_led.off()
-        #     time.sleep(0.2)
-        #     self.battery_led.on()
-        #     time.sleep(0.1)
-        #     self.battery_led.off()
-        #     time.sleep(0.2)
-        #     self.battery_led.on()
-        #     time.sleep(0.1)
-        #     self.battery_led.off()
-        #     time.sleep(0.2)
-
         # Initialize Picarx
         try:
             self.px = Picarx()
