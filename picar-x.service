@@ -8,9 +8,10 @@ Requires=basic.target
 Type=simple
 User=root
 WorkingDirectory=/home/mw/picar-x
-ExecStartPre=/bin/sleep 10
-ExecStart=/usr/bin/python3 /home/mw/picar-x/m1/test.py
-Restart=always
+Environment=PYTHONPATH=/home/mw/robot-hat
+ExecStartPre=/bin/sleep 5
+ExecStart=/usr/bin/python3 /home/mw/picar-x/m1/poll_buttons.py
+Restart=no
 RestartSec=10
 
 [Install]

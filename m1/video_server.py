@@ -10,6 +10,26 @@ from http.server import HTTPServer, BaseHTTPRequestHandler
 import socketserver
 import io
 from PIL import Image
+import logging
+
+# Configure logging
+logger = logging.getLogger('picar-x.video')
+logger.setLevel(logging.INFO)
+
+# Add handlers if they don't exist
+if not logger.handlers:
+    # Create formatters and handlers
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # File handler
+    file_handler = logging.FileHandler('/var/log/picar-x.log')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
 
 # Global flag for test pattern mode
 USING_TEST_PATTERN = False
@@ -23,18 +43,19 @@ WEB_HOST = '0.0.0.0'  # Listen on all interfaces
 WEB_DISPLAY_HOST = '192.168.1.167'  # Display host for URLs
 
 try:
+    logger.info("Import Vilib")
     from vilib import Vilib
-    print("Successfully imported Vilib")
+    logger.info("Successfully imported Vilib")
     HAS_VILIB = True
 except Exception as e:
-    print(f"Warning: Vilib not available: {e}")
-    print("Will use test pattern mode")
+    logger.warning(f"Warning: Vilib not available: {e}")
+    logger.info("Will use test pattern mode")
     HAS_VILIB = False
 
 class TestPatternHandler(BaseHTTPRequestHandler):
     """HTTP request handler for serving test pattern"""
     def do_GET(self):
-        print(f"Received request for {self.path}")
+        logger.info(f"Received request for {self.path}")
         if self.path == '/mjpg':
             self.send_response(200)
             self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=--frame')
@@ -42,7 +63,7 @@ class TestPatternHandler(BaseHTTPRequestHandler):
             try:
                 while True:
                     if not hasattr(self.server, 'frame') or self.server.frame is None:
-                        print("Waiting for frame...")
+                        logger.info("Waiting for frame...")
                         sleep(0.033)
                         continue
                     
@@ -61,7 +82,7 @@ class TestPatternHandler(BaseHTTPRequestHandler):
                     self.wfile.write(b'\r\n')
                     sleep(0.033)  # ~30 fps
             except Exception as e:
-                print(f"Error in video streaming: {e}")
+                logger.error(f"Error in video streaming: {e}")
                 pass
         else:
             self.send_response(404)
@@ -90,9 +111,9 @@ class MockVilib:
                 cls._web_thread = threading.Thread(target=cls._web_server.serve_forever)
                 cls._web_thread.daemon = True
                 cls._web_thread.start()
-                print(f"Web stream available at http://{WEB_DISPLAY_HOST}:{WEB_PORT}/mjpg")
+                logger.info(f"Web stream available at http://{WEB_DISPLAY_HOST}:{WEB_PORT}/mjpg")
             except Exception as e:
-                print(f"Error starting web server: {e}")
+                logger.error(f"Error starting web server: {e}")
     
     @staticmethod
     def camera_start(**kwargs):
@@ -123,7 +144,7 @@ class VideoServer:
         # Disable local display in headless environment
         self.enable_local = enable_local and not HEADLESS
         if enable_local and HEADLESS:
-            print("Warning: Local display disabled in headless environment")
+            logger.warning("Warning: Local display disabled in headless environment")
         
         self.running = False
         self.using_test_pattern = not HAS_VILIB
@@ -182,7 +203,7 @@ class VideoServer:
 
     def _update_test_pattern(self):
         """Update test pattern in a loop"""
-        print("Starting test pattern update loop")
+        logger.info("Starting test pattern update loop")
         while self.running:
             try:
                 self.vilib.frame = self.generate_test_pattern()
@@ -194,13 +215,13 @@ class VideoServer:
                         break
                 sleep(0.033)  # ~30 fps
             except Exception as e:
-                print(f"Error updating test pattern: {e}")
+                logger.error(f"Error updating test pattern: {e}")
                 break
 
     def start(self):
         """Start the video server"""
         try:
-            print("Starting video server...")
+            logger.info("Starting video server...")
             
             # Set resolution through environment variable
             os.environ['VILIB_CAMERA_WIDTH'] = '320'
@@ -211,8 +232,8 @@ class VideoServer:
                     # Try to start camera with default resolution
                     self.vilib.camera_start(vflip=self.vflip, hflip=self.hflip)
                 except Exception as camera_error:
-                    print(f"Camera not available: {camera_error}")
-                    print("Falling back to test pattern")
+                    logger.warning(f"Camera not available: {camera_error}")
+                    logger.info("Falling back to test pattern")
                     self.using_test_pattern = True
                     self.vilib = MockVilib
             
@@ -229,8 +250,8 @@ class VideoServer:
             
             self.vilib.display(local=self.enable_local, web=self.enable_web)
             self.running = True
-            print("Video server started successfully")
-            print(f"Using {'test pattern' if self.using_test_pattern else 'camera'} mode")
+            logger.info("Video server started successfully")
+            logger.info(f"Using {'test pattern' if self.using_test_pattern else 'camera'} mode")
             
             # Wait for initialization
             sleep(2)
@@ -242,7 +263,7 @@ class VideoServer:
                 self._test_pattern_thread.start()
                     
         except Exception as e:
-            print(f"Error starting video server: {e}")
+            logger.error(f"Error starting video server: {e}")
             self.stop()
 
     def stop(self):
@@ -260,7 +281,7 @@ class VideoServer:
         else:
             self.vilib.camera_close()
         
-        print("Video server stopped")
+        logger.info("Video server stopped")
 
     def take_photo(self):
         """Take a photo and save it
@@ -281,10 +302,10 @@ class VideoServer:
                 self.vilib.take_photo(name, self.photo_path)
                 photo_path = f"{self.photo_path}{name}.jpg"
                 
-            print(f'Photo saved as {photo_path}')
+            logger.info(f'Photo saved as {photo_path}')
             return photo_path
         except Exception as e:
-            print(f"Error taking photo: {e}")
+            logger.error(f"Error taking photo: {e}")
             return None
 
 if __name__ == "__main__":
@@ -292,7 +313,7 @@ if __name__ == "__main__":
     server = VideoServer(vflip=False, hflip=False)
     try:
         server.start()
-        print("\nPress Ctrl+C to stop the server")
+        logger.info("\nPress Ctrl+C to stop the server")
         while server.running:
             sleep(1)
     except KeyboardInterrupt:

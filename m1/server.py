@@ -2,9 +2,30 @@ import paho.mqtt.client as mqtt
 import json
 import threading
 import time
+import logging
+import sys
 from picarx import Picarx  # Import Picarx
 from robot_hat import ADC
 from gpiozero import LED
+
+# Configure logging
+logger = logging.getLogger('picar-x.server')
+logger.setLevel(logging.DEBUG)
+
+# Add handlers if they don't exist
+if not logger.handlers:
+    # Create formatters and handlers
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+    
+    # File handler
+    file_handler = logging.FileHandler('/var/log/picar-x.log')
+    file_handler.setFormatter(formatter)
+    logger.addHandler(file_handler)
+    
+    # Console handler
+    console_handler = logging.StreamHandler(sys.stdout)
+    console_handler.setFormatter(formatter)
+    logger.addHandler(console_handler)
 
 MOCK_STATUS = {
     'gpio': False,        # GPIO/Motors mock status
@@ -32,21 +53,21 @@ class PiServer:
         try:
             self.battery_led = LED(26)
         except Exception as e:
-            print(f"Warning: Failed to initialize LED: {e}")
+            logger.warning(f"Failed to initialize LED: {e}")
             self.battery_led = None
 
         # Initialize Picarx
         try:
             self.px = Picarx()
         except Exception as e:
-            print(f"Warning: Failed to initialize Picarx: {e}")
+            logger.warning(f"Failed to initialize Picarx: {e}")
             self.px = None
 
         # Initialize ADC for battery monitoring
         try:
             self.adc = ADC('A4')
         except Exception as e:
-            print(f"Warning: Failed to initialize ADC: {e}")
+            logger.warning(f"Failed to initialize ADC: {e}")
             self.adc = None
 
         # Client variables for transfer
@@ -61,6 +82,10 @@ class PiServer:
         # Create battery voltage update thread
         self.voltage_thread = threading.Thread(target=self._update_battery_voltage)
         self.voltage_thread.daemon = True
+        
+        # Create distance update thread
+        self.distance_thread = threading.Thread(target=self._update_distance)
+        self.distance_thread.daemon = True
 
     def _get_battery_voltage(self):
         """Read battery voltage from ADC"""
@@ -78,7 +103,7 @@ class PiServer:
             voltage = raw_value * 3.3 / 4095 * 3  # multiply by 3 if using voltage divider
             return round(voltage, 2)
         except Exception as e:
-            print(f"Error reading ADC: {e}")
+            logger.error(f"Error reading ADC: {e}")
             return 0.0
 
     def _update_battery_voltage(self):
@@ -87,8 +112,18 @@ class PiServer:
             try:
                 self.Vb = self._get_battery_voltage()
             except Exception as e:
-                print(f"Error updating battery voltage: {e}")
+                logger.error(f"Error updating battery voltage: {e}")
             time.sleep(1)  # Update every second
+
+    def _update_distance(self):
+        """Update distance measurement in a loop"""
+        while self.running:
+            try:
+                if self.px:
+                    self.last_distance = self.px.get_distance()
+            except Exception as e:
+                logger.error(f"Error updating distance: {e}")
+            time.sleep(0.1)  # Update 10 times per second
 
     def setup_mqtt(self):
         self.client = mqtt.Client()
@@ -96,14 +131,14 @@ class PiServer:
         self.client.on_message = self.on_message
         
     def on_connect(self, client, userdata, flags, rc):
-        print(f"Connected to MQTT broker with result code {rc}")
+        logger.info(f"Connected to MQTT broker with result code {rc}")
         # Subscribe to control and status topics on connect/reconnect
         self.client.subscribe([
             (TOPIC_CONTROL, 0), 
             (TOPIC_STATUS, 0),
             (TOPIC_STATUS_INFO, 0)
         ])
-        print(f"Subscribed to topics: {TOPIC_CONTROL}, {TOPIC_STATUS}, {TOPIC_STATUS_INFO}")
+        logger.info(f"Subscribed to topics: {TOPIC_CONTROL}, {TOPIC_STATUS}, {TOPIC_STATUS_INFO}")
 
     def on_message(self, client, userdata, msg):
         try:
@@ -114,7 +149,7 @@ class PiServer:
                     try:
                         self.last_distance = self.px.get_distance()
                     except Exception as e:
-                        print(f"Error reading distance: {e}")
+                        logger.error(f"Error reading distance: {e}")
                 
                 # Send status response with battery and distance
                 response = {
@@ -122,7 +157,7 @@ class PiServer:
                     "distance": float(f"{self.last_distance:.2f}")  # Last measured distance
                 }
                 self.client.publish(TOPIC_RESPONSE, json.dumps(response))
-                print(f"Published status info response: {response}")
+                logger.debug(f"Published status info response: {response}")
             
             elif msg.topic == TOPIC_STATUS:
                 # Send current status with 2 significant digits
@@ -131,7 +166,7 @@ class PiServer:
                     "mock_status": MOCK_STATUS
                 }
                 self.client.publish(TOPIC_RESPONSE, json.dumps(response))
-                print(f"Published status response: {response}")
+                logger.debug(f"Published status response: {response}")
             elif msg.topic == TOPIC_CONTROL:
                 # Handle control messages
                 data = json.loads(msg.payload.decode())
@@ -163,7 +198,7 @@ class PiServer:
                             self.px.stop()
                         # print(f"Steering: {steering_angle:.0f}°, Speed: {motor_speed:.0f}")
                     except Exception as e:
-                        print(f"Error handling motor control: {e}")
+                        logger.error(f"Error handling motor control: {e}")
                 
                 # Handle camera control if pan or tilt is present
                 if ('pan' in data or 'tilt' in data) and self.px is not None:
@@ -180,14 +215,14 @@ class PiServer:
                         self.px.set_cam_tilt_angle(tilt_angle)
                         # print(f"Pan: {pan_angle:.0f}, Tilt: {tilt_angle:.0f}")
                     except Exception as e:
-                        print(f"Error handling camera control: {e}")
+                        logger.error(f"Error handling camera control: {e}")
                 
                 # Update other values based on control message
                 for key, value in data.items():
                     if hasattr(self, key):
                         setattr(self, key, value)
         except Exception as e:
-            print(f"Error processing message: {e}")
+            logger.error(f"Error processing message: {e}")
 
     def start(self):
         """Start the MQTT client and connect to broker"""
@@ -197,9 +232,11 @@ class PiServer:
             self.running = True
             # Start battery voltage monitoring thread
             self.voltage_thread.start()
-            print(f"MQTT Server started on {self.broker}:{self.port}")
+            # Start distance monitoring thread
+            self.distance_thread.start()
+            logger.info(f"MQTT Server started on {self.broker}:{self.port}")
         except Exception as e:
-            print(f"Error starting MQTT server: {e}")
+            logger.error(f"Error starting MQTT server: {e}")
             self.running = False
 
     def stop(self):
@@ -209,11 +246,16 @@ class PiServer:
         # Wait for voltage thread to finish
         if self.voltage_thread and self.voltage_thread.is_alive():
             self.voltage_thread.join(timeout=1.0)
-        print("Voltage thread stopped")
+        logger.info("Voltage thread stopped")
+        
+        # Wait for distance thread to finish
+        if self.distance_thread and self.distance_thread.is_alive():
+            self.distance_thread.join(timeout=1.0)
+        logger.info("Distance thread stopped")
             
         # Stop MQTT client
         if self.client:
             self.client.loop_stop()
             self.client.disconnect()
             
-        print("mqtt_server stopped")
+        logger.info("mqtt_server stopped")

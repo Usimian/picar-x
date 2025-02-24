@@ -1,23 +1,45 @@
 from server import PiServer
-from robot_hat import ADC
-from video_server import VideoServer
+# from video_server import VideoServer
 import time
 import signal
 import sys
-import threading
 import socket
 from time import sleep
+import logging
+from gpiozero import Button, LED
 
+# Global variables to track running servers
+_running_servers = {
+    'mqtt_server': None,
+    'video_server': None,
+    'ip_address': None
+}
 
-def signal_handler(sig, frame):
-    cleanup()
-    sys.exit(0)
+def setup_logging():
+    """Set up logging configuration for the entire application"""
+    # Configure root logger
+    root_logger = logging.getLogger()
+    if not root_logger.handlers:  # Only add handler if it doesn't exist
+        root_logger.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        
+        # File handler
+        file_handler = logging.FileHandler('/var/log/picar-x.log')
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
+        
+        # Console handler
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+    
+    # Get logger for this module
+    logger = logging.getLogger('picar-x.test')
+    logger.setLevel(logging.INFO)
+    return logger
 
-# Initialize servers and shared objects
-mqtt_server = None
-video_server = None
-distance_thread_running = True  # Global flag to control distance thread
-_cleanup_done = False  # Flag to track if cleanup has been done
+# Get module logger
+logger = logging.getLogger('picar-x.test')
 
 def get_ip_address():
     """Get the primary IP address of the device"""
@@ -30,85 +52,97 @@ def get_ip_address():
         s.close()
         return ip
     except Exception as e:
-        print(f"Error getting IP address: {e}")
+        logger.error(f"Error getting IP address: {e}")
         return "localhost"
 
-def measure_distance():
-    """Measure distance from ultrasonic sensor at 20Hz"""
-    global mqtt_server, distance_thread_running
-    if mqtt_server is None or mqtt_server.px is None:
-        print("Error: Picarx not initialized")
-        return
-
-    interval = 0.05  # 20Hz measurement rate
-    SAFETY_DISTANCE = 10  # cm
-    
-    while distance_thread_running:  # Use our own control flag
-        try:
-            if mqtt_server and mqtt_server.px:  # Check if server and px are still available
-                distance = mqtt_server.px.get_distance()
-                # Safety check - stop if too close to obstacle
-                if distance is not None and distance < SAFETY_DISTANCE:
-                    # Stop the car by setting speed to 0
-                    mqtt_server.px.forward(0)
-            time.sleep(interval)
-        except Exception as e:
-            if distance_thread_running:  # Only print error if we're still supposed to be running
-                print(f"Error measuring distance: {e}")
-            time.sleep(interval)
-
-def cleanup():
+def cleanup(mqtt_server=None, video_server=None):
     """Clean shutdown of all services"""
-    global distance_thread_running, _cleanup_done
+    logger.info('Stopping services...')
     
-    # Only cleanup once
-    if _cleanup_done:
-        return
-    _cleanup_done = True
+    # Use global servers if none provided
+    mqtt_server = mqtt_server or _running_servers['mqtt_server']
+    video_server = video_server or _running_servers['video_server']
     
-    print('\nStopping services...')
-    
-    # First stop the distance thread
-    distance_thread_running = False
-    if 'distance_thread' in globals() and distance_thread:
-        time.sleep(0.2)  # Give the thread time to stop
-    print("Distance thread stopped")
-    
-    # Then stop the servers
+    # Stop the servers
     if mqtt_server:
         mqtt_server.stop()
     if video_server:
         video_server.stop()
+    
+    # Clear global servers
+    _running_servers['mqtt_server'] = None
+    _running_servers['video_server'] = None
+    _running_servers['ip_address'] = None
 
-if __name__ == "__main__":
-    distance_thread = None  # Initialize thread variable
+def run_servers(block=True):
+    """
+    Start the PiCar-X servers
+    
+    Args:
+        block (bool): If True, blocks and runs forever. If False, starts servers and returns.
+    
+    Returns:
+        tuple: (mqtt_server, video_server, ip_address) if block=False
+    """
     try:
-        print("Starting PiCar-X servers...")
+        logger.info("Starting PiCar-X servers...")
 
         ip_address = get_ip_address()
         
         mqtt_server = PiServer()    # MQTT messaging system
         mqtt_server.start()
 
-        video_server = VideoServer(vflip=False, hflip=False)
-        video_server.start()
+        video_server = None
+        # video_server = VideoServer(vflip=False, hflip=False)
+        # video_server.start()
+        
+        # Store running servers globally
+        _running_servers.update({
+            'mqtt_server': mqtt_server,
+            'video_server': video_server,
+            'ip_address': ip_address
+        })
 
+        # Set up signal handler for this process
+        def signal_handler(sig, frame):
+            cleanup()  # Use the global cleanup
+            sys.exit(0)
+            
         signal.signal(signal.SIGINT, signal_handler)
+        # Also handle SIGTERM for proper systemd service shutdown
+        signal.signal(signal.SIGTERM, signal_handler)
 
-        if mqtt_server.px is not None:
-            distance_thread = threading.Thread(target=measure_distance)
-            distance_thread.daemon = True
-            distance_thread.start()
+        logger.info(f"Servers are running.")
+        logger.info(f"Video stream available at: http://{ip_address}:9000/mjpg")
+
+        if block:
+            while True:
+                time.sleep(1)
         else:
-            print("Warning: Distance measurement disabled due to Picarx initialization failure")
-
-        print(f"\nServers are running. Press Ctrl+C to stop.")
-        print(f"Video stream available at: http://{ip_address}:9000/mjpg")
-
-        while True:
-            time.sleep(1)
+            return mqtt_server, video_server, ip_address
 
     except Exception as e:
-        print(f"Error: {e}")
+        logger.error(f"Error: {e}")
+        cleanup(mqtt_server, video_server)
+        raise
+
+if __name__ == "__main__":
+    # Ensure logging is set up when run as main
+    logger = setup_logging()
+    
+    try:
+        # Start servers in non-blocking mode
+        mqtt_server, video_server, ip = run_servers(block=False)
+        
+        # Keep the main thread alive to handle signals
+        while True:
+            try:
+                sleep(1)
+            except KeyboardInterrupt:
+                logger.info("Received KeyboardInterrupt, shutting down...")
+                break
+    
     finally:
+        # Ensure cleanup happens even if there's an error
         cleanup()
+        logger.info("Shutdown complete")
