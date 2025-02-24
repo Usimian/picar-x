@@ -6,26 +6,11 @@ import logging
 import sys
 from picarx import Picarx  # Import Picarx
 from robot_hat import ADC
-from gpiozero import LED
+from gpio_functions import led  # Import LED from gpio_functions
 
-# Configure logging
+# Get logger for this module
 logger = logging.getLogger('picar-x.server')
 logger.setLevel(logging.DEBUG)
-
-# Add handlers if they don't exist
-if not logger.handlers:
-    # Create formatters and handlers
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    
-    # File handler
-    file_handler = logging.FileHandler('/var/log/picar-x.log')
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
 
 MOCK_STATUS = {
     'gpio': False,        # GPIO/Motors mock status
@@ -49,13 +34,6 @@ class PiServer:
         self.client = None
         self.running = False
         
-        # Initialize LED for battery monitoring
-        try:
-            self.battery_led = LED(26)
-        except Exception as e:
-            logger.warning(f"Failed to initialize LED: {e}")
-            self.battery_led = None
-
         # Initialize Picarx
         try:
             self.px = Picarx()
@@ -90,10 +68,9 @@ class PiServer:
     def _get_battery_voltage(self):
         """Read battery voltage from ADC"""
         try:
-            if self.battery_led:
-                self.battery_led.on()    # Blink LED to indicate battery voltage reading
-                time.sleep(0.1)
-                self.battery_led.off()
+            led.on()    # Blink LED to indicate battery voltage reading
+            time.sleep(0.1)
+            led.off()
 
             if self.adc is None:
                 return 0.0
@@ -242,7 +219,7 @@ class PiServer:
     def stop(self):
         """Stop the mqtt_server and cleanup"""
         self.running = False
-        
+
         # Wait for voltage thread to finish
         if self.voltage_thread and self.voltage_thread.is_alive():
             self.voltage_thread.join(timeout=1.0)

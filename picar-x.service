@@ -6,13 +6,16 @@ Requires=basic.target
 
 [Service]
 Type=simple
-User=root
+User=mw
+Group=mw
 WorkingDirectory=/home/mw/picar-x
-Environment=PYTHONPATH=/home/mw/robot-hat
+Environment=PYTHONPATH=/home/mw/robot-hat/robot_hat
 ExecStartPre=/bin/sleep 5
 ExecStart=/usr/bin/python3 /home/mw/picar-x/m1/poll_buttons.py
 Restart=no
 RestartSec=10
+# Add required permissions for hardware access
+SupplementaryGroups=gpio i2c video
 
 [Install]
 WantedBy=multi-user.target

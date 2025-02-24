@@ -12,25 +12,6 @@ import io
 from PIL import Image
 import logging
 
-# Configure logging
-logger = logging.getLogger('picar-x.video')
-logger.setLevel(logging.INFO)
-
-# Add handlers if they don't exist
-if not logger.handlers:
-    # Create formatters and handlers
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-    
-    # File handler
-    file_handler = logging.FileHandler('/var/log/picar-x.log')
-    file_handler.setFormatter(formatter)
-    logger.addHandler(file_handler)
-    
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setFormatter(formatter)
-    logger.addHandler(console_handler)
-
 # Global flag for test pattern mode
 USING_TEST_PATTERN = False
 
@@ -43,11 +24,13 @@ WEB_HOST = '0.0.0.0'  # Listen on all interfaces
 WEB_DISPLAY_HOST = '192.168.1.167'  # Display host for URLs
 
 try:
+    logger = logging.getLogger('picar-x.video')
     logger.info("Import Vilib")
     from vilib import Vilib
     logger.info("Successfully imported Vilib")
     HAS_VILIB = True
 except Exception as e:
+    logger = logging.getLogger('picar-x.video')
     logger.warning(f"Warning: Vilib not available: {e}")
     logger.info("Will use test pattern mode")
     HAS_VILIB = False
@@ -55,6 +38,7 @@ except Exception as e:
 class TestPatternHandler(BaseHTTPRequestHandler):
     """HTTP request handler for serving test pattern"""
     def do_GET(self):
+        logger = logging.getLogger('picar-x.video')
         logger.info(f"Received request for {self.path}")
         if self.path == '/mjpg':
             self.send_response(200)
@@ -100,6 +84,7 @@ class MockVilib:
     
     @classmethod
     def display(cls, local=True, web=True):
+        logger = logging.getLogger('picar-x.video')
         if local and not HEADLESS:
             cv2.namedWindow('Test Pattern', cv2.WINDOW_NORMAL)
         
@@ -121,6 +106,7 @@ class MockVilib:
     
     @classmethod
     def camera_close(cls):
+        logger = logging.getLogger('picar-x.video')
         if not HEADLESS:
             cv2.destroyAllWindows()
         
@@ -138,6 +124,7 @@ class VideoServer:
             enable_web (bool): Enable web streaming
             enable_local (bool): Enable local display
         """
+        logger = logging.getLogger('picar-x.video')
         self.vflip = vflip
         self.hflip = hflip
         self.enable_web = enable_web
@@ -168,6 +155,7 @@ class VideoServer:
         Returns:
             numpy.ndarray: Test pattern image
         """
+        logger = logging.getLogger('picar-x.video')
         width = int(os.environ.get('VILIB_CAMERA_WIDTH', '320'))
         height = int(os.environ.get('VILIB_CAMERA_HEIGHT', '240'))
         
@@ -203,6 +191,7 @@ class VideoServer:
 
     def _update_test_pattern(self):
         """Update test pattern in a loop"""
+        logger = logging.getLogger('picar-x.video')
         logger.info("Starting test pattern update loop")
         while self.running:
             try:
@@ -220,6 +209,7 @@ class VideoServer:
 
     def start(self):
         """Start the video server"""
+        logger = logging.getLogger('picar-x.video')
         try:
             logger.info("Starting video server...")
             
@@ -268,6 +258,7 @@ class VideoServer:
 
     def stop(self):
         """Stop the video server"""
+        logger = logging.getLogger('picar-x.video')
         self.running = False
         
         # Wait for test pattern thread to stop
@@ -289,6 +280,7 @@ class VideoServer:
         Returns:
             str: Path to saved photo
         """
+        logger = logging.getLogger('picar-x.video')
         try:
             timestamp = strftime('%Y-%m-%d-%H-%M-%S', localtime())
             name = f'photo_{timestamp}'
@@ -307,14 +299,3 @@ class VideoServer:
         except Exception as e:
             logger.error(f"Error taking photo: {e}")
             return None
-
-if __name__ == "__main__":
-    # Example usage
-    server = VideoServer(vflip=False, hflip=False)
-    try:
-        server.start()
-        logger.info("\nPress Ctrl+C to stop the server")
-        while server.running:
-            sleep(1)
-    except KeyboardInterrupt:
-        server.stop()

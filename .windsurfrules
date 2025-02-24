@@ -1,3 +1,4 @@
 Use Python 3.11 or greater for coding
 This project is for a Raspberry Pi 5
 The /home/mw/robot-hat folder contains hardware code
+Use PEP 8 for coding style

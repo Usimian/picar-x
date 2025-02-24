@@ -1,70 +1,79 @@
 import time
 from time import sleep
-from gpiozero import Button, LED
 import logging
 import sys
-from gpiozero.pins.rpigpio import RPiGPIOFactory
-import RPi.GPIO as GPIO
-from test import run_servers
-# from ledtest import run_led_test
+from test import run_servers, cleanup
+from gpio_functions import button, led, setup_gpio
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    handlers=[
-        logging.StreamHandler(sys.stdout),
-        logging.FileHandler('/var/log/picar-x.log')
-    ]
-)
+def setup_logging():
+    """Set up logging configuration for the entire application"""
+    try:
+        # Configure root logger
+        root_logger = logging.getLogger()
+        
+        # Clear any existing handlers to avoid duplicates
+        root_logger.handlers = []
+        
+        root_logger.setLevel(logging.INFO)
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        
+        # File handler
+        file_handler = logging.FileHandler('/var/log/picar-x.log')
+        file_handler.setFormatter(formatter)
+        root_logger.addHandler(file_handler)
+        
+        # Console handler
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setFormatter(formatter)
+        root_logger.addHandler(console_handler)
+        
+    except PermissionError:
+        print("Error: Unable to write to /var/log/picar-x.log - Please run with appropriate permissions")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error setting up logging: {e}")
+        sys.exit(1)
 
-# Initialize the button and LED
-GPIO.cleanup()
-GPIO.setwarnings(False)
-sleep(0.5)  # Give time for cleanup to complete
+# Set up logging first
+setup_logging()
 
-button = Button(25)      # GPIO25 for input button
-led = LED(26)           # GPIO26 for output LED
+# Configure module logger
+logger = logging.getLogger('picar-x.buttons')
+logger.setLevel(logging.INFO)
+
+# Initialize GPIO
+setup_gpio()
 
 if __name__ == "__main__":
+    mqtt_server = None
+    video_server = None
     try:
         led.on()
-        logging.info("Starting button polling (Press CTRL+C to exit)...")
-        logging.info("Main button on GPIO25, LED on GPIO26")
+        logger.info("Starting button polling (Press CTRL+C to exit)...")
         
         while True:
-            if button.is_pressed:
+            # Use wait_for_press instead of continuous polling
+            button.wait_for_press()
+            
+            if mqtt_server is None:  # First press - start servers
                 led.off()
-                led.close()
-                # Force cleanup of all GPIO
-                sleep(2)
-                logging.info("GPIO resources released")
-                logging.info("Starting Servers...")
-                
-                mqtt_server, video_server, ip = run_servers(block=False)
-
-                while True:
-                    if button.is_pressed:
-                        cleanup(mqtt_server, video_server)
-                        break
-
-
-                # run_led_test()
+                logger.info("Starting Servers...")
+                try:
+                    mqtt_server, video_server, ip = run_servers()
+                except Exception as e:
+                    logger.error(f"Failed to start servers: {e}")
+                    mqtt_server = None
+                    video_server = None
+            else:  # Second press - stop servers
+                logger.info("Start/stop pressed, shutting down...")
                 break
                 
     except KeyboardInterrupt:
-        logging.info("Stopping button polling...")
-        led.off()
-        led.close()
-        button.close()
-        GPIO.cleanup()
-        logging.info("except GPIO resources released")
+        logger.info("Ctrl-C detected, shutting down...")
+    except Exception as e:
+        logger.error(f"Unexpected error: {e}")
     finally:
-        if 'led' in locals():
-            led.close()
-        if 'button' in locals():
-            button.close()
-        GPIO.cleanup()
-        logging.info("finally GPIO resources released")
-        sleep(0.5)  # Give time for cleanup to complete
+        cleanup(mqtt_server, video_server)
+        mqtt_server = None
+        video_server = None
         sys.exit(0)
