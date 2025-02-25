@@ -10,6 +10,7 @@ from gpio_functions import setup_gpio, cleanup_gpio, button, led
 
 # Get logger for this module
 logger = logging.getLogger('picar-x.test')
+logger.setLevel(logging.INFO)
 
 # Initialize GPIO
 setup_gpio()
@@ -49,17 +50,19 @@ def run_servers():
         tuple: (mqtt_server, video_server, ip_address)
     """
     try:
-        logger.info("Starting PiCar-X servers...")
+        logger.info("Starting PiCar-X - servers...")
         
         ip_address = get_ip_address()
-        
+
+        mqtt_server = None
         mqtt_server = PiServer()    # MQTT messaging system
-        mqtt_server.start()
+        mqtt_server.start() # Start MQTT server
 
         video_server = None
         # video_server = VideoServer(vflip=False, hflip=False)
         # video_server.start()
-        
+        # logger.info(f"video_server.start() - ok")
+
         # Set up signal handler for this process
         def signal_handler(sig, frame):
             cleanup()  # Use the global cleanup

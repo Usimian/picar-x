@@ -10,7 +10,7 @@ from gpio_functions import led  # Import LED from gpio_functions
 
 # Get logger for this module
 logger = logging.getLogger('picar-x.server')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 MOCK_STATUS = {
     'gpio': False,        # GPIO/Motors mock status
@@ -44,6 +44,7 @@ class PiServer:
         # Initialize ADC for battery monitoring
         try:
             self.adc = ADC('A4')
+            logger.info("Initialized ADC")
         except Exception as e:
             logger.warning(f"Failed to initialize ADC: {e}")
             self.adc = None
@@ -54,16 +55,17 @@ class PiServer:
         self.Pos = 0
         self.last_distance = 0.0  # Track last measured distance
         
-        # MQTT setup
-        self.setup_mqtt()
+        self.setup_mqtt()   # Setup MQTT client
         
         # Create battery voltage update thread
         self.voltage_thread = threading.Thread(target=self._update_battery_voltage)
         self.voltage_thread.daemon = True
+        logger.info("Voltage thread created")
         
-        # Create distance update thread
+        # Create ultrasonic distance update thread
         self.distance_thread = threading.Thread(target=self._update_distance)
         self.distance_thread.daemon = True
+        logger.info("Distance thread created")
 
     def _get_battery_voltage(self):
         """Read battery voltage from ADC"""
@@ -106,7 +108,8 @@ class PiServer:
         self.client = mqtt.Client()
         self.client.on_connect = self.on_connect
         self.client.on_message = self.on_message
-        
+        logger.debug("setup_mqtt()")
+
     def on_connect(self, client, userdata, flags, rc):
         logger.info(f"Connected to MQTT broker with result code {rc}")
         # Subscribe to control and status topics on connect/reconnect
@@ -119,7 +122,7 @@ class PiServer:
 
     def on_message(self, client, userdata, msg):
         try:
-            # print(f"\n--- Received Message: {msg.topic} ---")
+            logger.debug(f"--- Received Message: {msg.topic} ---")
             if msg.topic == TOPIC_STATUS_INFO:
                 # Get current distance measurement
                 if self.px:
@@ -207,11 +210,16 @@ class PiServer:
             self.client.connect(self.broker, self.port, 60)
             self.client.loop_start()
             self.running = True
+            logger.info(f"MQTT Server started on {self.broker}:{self.port}")
+
             # Start battery voltage monitoring thread
             self.voltage_thread.start()
+            logger.info("Voltage thread started")
+
             # Start distance monitoring thread
             self.distance_thread.start()
-            logger.info(f"MQTT Server started on {self.broker}:{self.port}")
+            logger.info("Distance thread started")
+
         except Exception as e:
             logger.error(f"Error starting MQTT server: {e}")
             self.running = False

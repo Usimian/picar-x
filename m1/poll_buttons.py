@@ -15,7 +15,7 @@ def setup_logging():
         root_logger.handlers = []
         
         root_logger.setLevel(logging.INFO)
-        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+        formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s - %(message)s', datefmt='%H:%M:%S')
         
         # File handler
         file_handler = logging.FileHandler('/var/log/picar-x.log')
@@ -39,7 +39,7 @@ setup_logging()
 
 # Configure module logger
 logger = logging.getLogger('picar-x.buttons')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 # Initialize GPIO
 setup_gpio()
@@ -53,20 +53,28 @@ if __name__ == "__main__":
         
         while True:
             # Use wait_for_press instead of continuous polling
-            button.wait_for_press()
+            button.wait_for_press() # Blocking call
             
-            if mqtt_server is None:  # First press - start servers
-                led.off()
-                logger.info("Starting Servers...")
-                try:
-                    mqtt_server, video_server, ip = run_servers()
-                except Exception as e:
-                    logger.error(f"Failed to start servers: {e}")
-                    mqtt_server = None
-                    video_server = None
-            else:  # Second press - stop servers
-                logger.info("Start/stop pressed, shutting down...")
+            led.off()
+            logger.info("Starting Servers...")
+            try:
+                mqtt_server, video_server, ip = run_servers()
+            except Exception as e:
+                logger.error(f"Failed to start servers: {e}")
+                mqtt_server = None
+                video_server = None
                 break
+
+            # Second press - stop servers
+            button.wait_for_press() # Blocking call
+
+            logger.info("Start/stop pressed, shutting down...")
+            for _ in range(5):
+                led.on()
+                sleep(0.1)
+                led.off()
+                sleep(0.1)
+            break
                 
     except KeyboardInterrupt:
         logger.info("Ctrl-C detected, shutting down...")

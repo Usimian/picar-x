@@ -23,14 +23,16 @@ WEB_PORT = 9000
 WEB_HOST = '0.0.0.0'  # Listen on all interfaces
 WEB_DISPLAY_HOST = '192.168.1.167'  # Display host for URLs
 
+# Get logger for this module
+logger = logging.getLogger('picar-x.video')
+logger.setLevel(logging.INFO)
+
 try:
-    logger = logging.getLogger('picar-x.video')
     logger.info("Import Vilib")
     from vilib import Vilib
     logger.info("Successfully imported Vilib")
     HAS_VILIB = True
 except Exception as e:
-    logger = logging.getLogger('picar-x.video')
     logger.warning(f"Warning: Vilib not available: {e}")
     logger.info("Will use test pattern mode")
     HAS_VILIB = False
@@ -38,7 +40,6 @@ except Exception as e:
 class TestPatternHandler(BaseHTTPRequestHandler):
     """HTTP request handler for serving test pattern"""
     def do_GET(self):
-        logger = logging.getLogger('picar-x.video')
         logger.info(f"Received request for {self.path}")
         if self.path == '/mjpg':
             self.send_response(200)
@@ -84,7 +85,6 @@ class MockVilib:
     
     @classmethod
     def display(cls, local=True, web=True):
-        logger = logging.getLogger('picar-x.video')
         if local and not HEADLESS:
             cv2.namedWindow('Test Pattern', cv2.WINDOW_NORMAL)
         
@@ -106,7 +106,6 @@ class MockVilib:
     
     @classmethod
     def camera_close(cls):
-        logger = logging.getLogger('picar-x.video')
         if not HEADLESS:
             cv2.destroyAllWindows()
         
@@ -124,7 +123,6 @@ class VideoServer:
             enable_web (bool): Enable web streaming
             enable_local (bool): Enable local display
         """
-        logger = logging.getLogger('picar-x.video')
         self.vflip = vflip
         self.hflip = hflip
         self.enable_web = enable_web
@@ -155,7 +153,6 @@ class VideoServer:
         Returns:
             numpy.ndarray: Test pattern image
         """
-        logger = logging.getLogger('picar-x.video')
         width = int(os.environ.get('VILIB_CAMERA_WIDTH', '320'))
         height = int(os.environ.get('VILIB_CAMERA_HEIGHT', '240'))
         
@@ -191,7 +188,6 @@ class VideoServer:
 
     def _update_test_pattern(self):
         """Update test pattern in a loop"""
-        logger = logging.getLogger('picar-x.video')
         logger.info("Starting test pattern update loop")
         while self.running:
             try:
@@ -209,7 +205,6 @@ class VideoServer:
 
     def start(self):
         """Start the video server"""
-        logger = logging.getLogger('picar-x.video')
         try:
             logger.info("Starting video server...")
             
@@ -258,7 +253,6 @@ class VideoServer:
 
     def stop(self):
         """Stop the video server"""
-        logger = logging.getLogger('picar-x.video')
         self.running = False
         
         # Wait for test pattern thread to stop
@@ -273,29 +267,3 @@ class VideoServer:
             self.vilib.camera_close()
         
         logger.info("Video server stopped")
-
-    def take_photo(self):
-        """Take a photo and save it
-        
-        Returns:
-            str: Path to saved photo
-        """
-        logger = logging.getLogger('picar-x.video')
-        try:
-            timestamp = strftime('%Y-%m-%d-%H-%M-%S', localtime())
-            name = f'photo_{timestamp}'
-            
-            if self.using_test_pattern:
-                # Save test pattern directly
-                photo_path = f"{self.photo_path}{name}.jpg"
-                cv2.imwrite(photo_path, self.generate_test_pattern())
-            else:
-                # Use Vilib's photo function
-                self.vilib.take_photo(name, self.photo_path)
-                photo_path = f"{self.photo_path}{name}.jpg"
-                
-            logger.info(f'Photo saved as {photo_path}')
-            return photo_path
-        except Exception as e:
-            logger.error(f"Error taking photo: {e}")
-            return None

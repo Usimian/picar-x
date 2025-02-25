@@ -5,7 +5,8 @@ from gpiozero import Button, LED
 import logging
 
 # Configure logging for this module
-logger = logging.getLogger('picar-x.gpio_functions')
+logger = logging.getLogger('picar-x.gpio')
+logger.setLevel(logging.INFO)
 
 # Initialize the button and LED as global variables
 button = Button(25)      # GPIO25 for input button
@@ -14,6 +15,7 @@ led = LED(26)           # GPIO26 for output LED
 
 def setup_gpio():
     """Set up GPIO devices"""
+    cleanup_gpio()
     try:
         logger.info("GPIO devices initialized")
     except Exception as e:

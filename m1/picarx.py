@@ -7,7 +7,7 @@ from robot_hat import Grayscale_Module, Ultrasonic, utils
 
 # Get module logger
 logger = logging.getLogger('picar-x.picarx')
-logger.info("Initializing picarx()")
+logger.setLevel(logging.INFO)
 
 def constrain(x, min_val, max_val):
     '''
@@ -46,7 +46,7 @@ class Picarx(object):
                 config:str=CONFIG,
                 ):
 
-        logger.info("Initializing PiCar-X")
+        logger.info("Initializing PiCar-X...")
         # reset robot_hat
         utils.reset_mcu()
         time.sleep(0.2)
