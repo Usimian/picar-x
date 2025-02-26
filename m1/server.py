@@ -124,13 +124,6 @@ class PiServer:
         try:
             logger.debug(f"--- Received Message: {msg.topic} ---")
             if msg.topic == TOPIC_STATUS_INFO:
-                # Get current distance measurement
-                if self.px:
-                    try:
-                        self.last_distance = self.px.get_distance()
-                    except Exception as e:
-                        logger.error(f"Error reading distance: {e}")
-                
                 # Send status response with battery and distance
                 response = {
                     "Vb": float(f"{self.Vb:.2f}"),  # Battery voltage from ADC
