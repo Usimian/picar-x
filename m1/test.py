@@ -50,7 +50,7 @@ def run_servers():
         tuple: (mqtt_server, video_server, ip_address)
     """
     try:
-        logger.info("Starting PiCar-X - servers...")
+        logger.debug("Starting PiCar-X - servers...")
         
         ip_address = get_ip_address()
 
@@ -60,8 +60,8 @@ def run_servers():
 
         video_server = None
         video_server = VideoServer(vflip=False, hflip=False)
-        # video_server.start()
-        logger.info(f"video_server.start() - ok")
+        video_server.start()
+        logger.debug(f"video_server.start() - ok")
 
         # Set up signal handler for this process
         def signal_handler(sig, frame):
@@ -71,9 +71,6 @@ def run_servers():
         signal.signal(signal.SIGINT, signal_handler)
         # Also handle SIGTERM for proper systemd service shutdown
         signal.signal(signal.SIGTERM, signal_handler)
-
-        logger.info(f"Servers are running.")
-        logger.info(f"Video stream available at: http://{ip_address}:9000/mjpg")
 
         return mqtt_server, video_server, ip_address
 

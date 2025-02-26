@@ -60,12 +60,12 @@ class PiServer:
         # Create battery voltage update thread
         self.voltage_thread = threading.Thread(target=self._update_battery_voltage)
         self.voltage_thread.daemon = True
-        logger.info("Voltage thread created")
+        logger.debug("Voltage thread created")
         
         # Create ultrasonic distance update thread
         self.distance_thread = threading.Thread(target=self._update_distance)
         self.distance_thread.daemon = True
-        logger.info("Distance thread created")
+        logger.debug("Distance thread created")
 
     def _get_battery_voltage(self):
         """Read battery voltage from ADC"""
@@ -118,7 +118,7 @@ class PiServer:
             (TOPIC_STATUS, 0),
             (TOPIC_STATUS_INFO, 0)
         ])
-        logger.info(f"Subscribed to topics: {TOPIC_CONTROL}, {TOPIC_STATUS}, {TOPIC_STATUS_INFO}")
+        logger.debug(f"Subscribed to topics: {TOPIC_CONTROL}, {TOPIC_STATUS}, {TOPIC_STATUS_INFO}")
 
     def on_message(self, client, userdata, msg):
         try:
@@ -214,11 +214,11 @@ class PiServer:
 
             # Start battery voltage monitoring thread
             self.voltage_thread.start()
-            logger.info("Voltage thread started")
+            logger.debug("Voltage thread started")
 
             # Start distance monitoring thread
             self.distance_thread.start()
-            logger.info("Distance thread started")
+            logger.debug("Distance thread started")
 
         except Exception as e:
             logger.error(f"Error starting MQTT server: {e}")
@@ -231,16 +231,16 @@ class PiServer:
         # Wait for distance thread to finish
         if self.distance_thread and self.distance_thread.is_alive():
             self.distance_thread.join(timeout=1.0)
-        logger.info("Distance thread stopped")
+        logger.debug("Distance thread stopped")
             
         # Wait for voltage thread to finish
         if self.voltage_thread and self.voltage_thread.is_alive():
             self.voltage_thread.join(timeout=1.0)
-        logger.info("Voltage thread stopped")
+        logger.debug("Voltage thread stopped")
         
         # Stop MQTT client
         if self.client:
             self.client.loop_stop()
             self.client.disconnect()
             
-        logger.info("mqtt_server stopped")
+        logger.debug("mqtt_server stopped")

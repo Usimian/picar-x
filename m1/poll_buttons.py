@@ -56,7 +56,7 @@ if __name__ == "__main__":
             button.wait_for_press() # Blocking call
 
             led.off()
-            logger.info("Starting Servers...")
+            logger.info("Starting Servers")
             try:
                 mqtt_server, video_server, ip = run_servers()
             except Exception as e:
@@ -68,7 +68,7 @@ if __name__ == "__main__":
             # Second press - stop servers
             button.wait_for_press() # Blocking call
 
-            logger.info("Start/stop pressed, shutting down...")
+            logger.info("Start/stop pressed, shutting down")
             for _ in range(5):
                 led.on()
                 sleep(0.1)

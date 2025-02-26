@@ -25,17 +25,7 @@ WEB_DISPLAY_HOST = '192.168.1.167'  # Display host for URLs
 
 # Get logger for this module
 logger = logging.getLogger('picar-x.video')
-logger.setLevel(logging.INFO)
-
-try:
-    logger.info("Import Vilib")
-    from vilib import Vilib
-    logger.info("Successfully imported Vilib")
-    HAS_VILIB = True
-except Exception as e:
-    logger.warning(f"Warning: Vilib not available: {e}")
-    logger.info("Will use test pattern mode")
-    HAS_VILIB = False
+logger.setLevel(logging.DEBUG)
 
 class TestPatternHandler(BaseHTTPRequestHandler):
     """HTTP request handler for serving test pattern"""
@@ -132,13 +122,31 @@ class VideoServer:
             logger.warning("Warning: Local display disabled in headless environment")
         
         self.running = False
-        self.using_test_pattern = not HAS_VILIB
+        
+        # Check vilib availability
+        self.has_vilib, self.Vilib = self._check_vilib_available()
+        self.using_test_pattern = not self.has_vilib
 
         # Use MockVilib if real Vilib is not available
-        self.vilib = MockVilib if not HAS_VILIB else Vilib
+        self.vilib = MockVilib if not self.has_vilib else self.Vilib
         
         # Thread for test pattern updates
         self._test_pattern_thread = None
+    
+    def _check_vilib_available(self):
+        """Check if vilib is available and return appropriate video handler
+        
+        Returns:
+            tuple: (bool, module) - (True, Vilib) if available, (False, None) if not
+        """
+        try:
+            from vilib import Vilib
+            logger.info("Successfully imported Vilib")
+            return True, Vilib
+        except (ImportError, IndexError) as e:
+            logger.warning(f"Vilib not available: {e}")
+            logger.info("Will use test pattern mode")
+            return False, None
 
     def generate_test_pattern(self):
         """Generate a test pattern image
@@ -229,7 +237,6 @@ class VideoServer:
             self.vilib.display(local=self.enable_local, web=self.enable_web)
             self.running = True
             logger.info("Video server started successfully")
-            logger.info(f"Using {'test pattern' if self.using_test_pattern else 'camera'} mode")
             
             # Wait for initialization
             sleep(2)
