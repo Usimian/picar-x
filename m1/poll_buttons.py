@@ -50,11 +50,11 @@ if __name__ == "__main__":
     try:
         led.on()
         logger.info("Starting button polling (Press CTRL+C to exit)...")
-        
+
         while True:
             # Use wait_for_press instead of continuous polling
             button.wait_for_press() # Blocking call
-            
+
             led.off()
             logger.info("Starting Servers...")
             try:
@@ -75,7 +75,7 @@ if __name__ == "__main__":
                 led.off()
                 sleep(0.1)
             break
-                
+
     except KeyboardInterrupt:
         logger.info("Ctrl-C detected, shutting down...")
     except Exception as e:

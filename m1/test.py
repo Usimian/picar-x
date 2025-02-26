@@ -1,5 +1,5 @@
 from server import PiServer
-# from video_server import VideoServer
+from video_server import VideoServer
 import time
 import signal
 import sys
@@ -59,9 +59,9 @@ def run_servers():
         mqtt_server.start() # Start MQTT server
 
         video_server = None
-        # video_server = VideoServer(vflip=False, hflip=False)
+        video_server = VideoServer(vflip=False, hflip=False)
         # video_server.start()
-        # logger.info(f"video_server.start() - ok")
+        logger.info(f"video_server.start() - ok")
 
         # Set up signal handler for this process
         def signal_handler(sig, frame):

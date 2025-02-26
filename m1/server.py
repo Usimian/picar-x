@@ -228,16 +228,16 @@ class PiServer:
         """Stop the mqtt_server and cleanup"""
         self.running = False
 
-        # Wait for voltage thread to finish
-        if self.voltage_thread and self.voltage_thread.is_alive():
-            self.voltage_thread.join(timeout=1.0)
-        logger.info("Voltage thread stopped")
-        
         # Wait for distance thread to finish
         if self.distance_thread and self.distance_thread.is_alive():
             self.distance_thread.join(timeout=1.0)
         logger.info("Distance thread stopped")
             
+        # Wait for voltage thread to finish
+        if self.voltage_thread and self.voltage_thread.is_alive():
+            self.voltage_thread.join(timeout=1.0)
+        logger.info("Voltage thread stopped")
+        
         # Stop MQTT client
         if self.client:
             self.client.loop_stop()

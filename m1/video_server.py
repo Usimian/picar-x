@@ -133,14 +133,7 @@ class VideoServer:
         
         self.running = False
         self.using_test_pattern = not HAS_VILIB
-        
-        # Get user home directory for photos
-        user = os.getlogin()
-        self.photo_path = os.path.expanduser(f'~{user}/Pictures/picar-x/')
-        
-        # Ensure photo directory exists
-        os.makedirs(self.photo_path, exist_ok=True)
-        
+
         # Use MockVilib if real Vilib is not available
         self.vilib = MockVilib if not HAS_VILIB else Vilib
         
