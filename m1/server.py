@@ -153,7 +153,7 @@ class PiServer:
                         
                         # Convert x to steering angle (-40 to 40 degrees)
                         # Assuming x is in range -100 to 100
-                        steering_angle = x * 15 # +/- 15 degrees
+                        steering_angle = x * 20 # +/- 15 degrees
                         
                         # Set steering angle using servo 3
                         self.px.set_dir_servo_angle(steering_angle)
@@ -162,8 +162,7 @@ class PiServer:
                         # Negative y means forward, positive y means backward
                         # Assuming y is in range -100 to 100
                         motor_speed = y*100.0
-                        
-                        if motor_speed > 0:
+                        if motor_speed > 0 and self.last_distance > 10:
                             self.px.forward(motor_speed)
                         elif motor_speed < 0:
                             self.px.backward(abs(motor_speed))
