@@ -23,7 +23,7 @@ MQTT_BROKER = "localhost"  # MQTT broker address
 MQTT_PORT = 1883  # Default MQTT port
 TOPIC_CONTROL = "picar/control_request"  # Topic for receiving control commands
 TOPIC_STATUS = "picar/status_request"  # Topic for receiving status requests
-TOPIC_STATUS_INFO = "picar/status_info"  # Topic for receiving status info requests
+
 TOPIC_RESPONSE = "picar/status_response"  # Topic for sending status responses
 
 
@@ -115,31 +115,25 @@ class PiServer:
         # Subscribe to control and status topics on connect/reconnect
         self.client.subscribe([
             (TOPIC_CONTROL, 0), 
-            (TOPIC_STATUS, 0),
-            (TOPIC_STATUS_INFO, 0)
+            (TOPIC_STATUS, 0)
         ])
-        logger.debug(f"Subscribed to topics: {TOPIC_CONTROL}, {TOPIC_STATUS}, {TOPIC_STATUS_INFO}")
+        logger.debug(f"Subscribed to topics: {TOPIC_CONTROL}, {TOPIC_STATUS}")
 
     def on_message(self, client, userdata, msg):
         try:
             logger.debug(f"--- Received Message: {msg.topic} ---")
-            if msg.topic == TOPIC_STATUS_INFO:
-                # Send status response with battery and distance
-                response = {
-                    "Vb": float(f"{self.Vb:.2f}"),  # Battery voltage from ADC
-                    "distance": float(f"{self.last_distance:.2f}")  # Last measured distance
-                }
+            if msg.topic == TOPIC_STATUS:
+                data = json.loads(msg.payload.decode())
+                action = data.get('command', '')
+                
+                if action == 'status':
+                    response = self.get_status()
+                else:
+                    logger.error(f'Unknown action: {action}')
+                    return
+
                 self.client.publish(TOPIC_RESPONSE, json.dumps(response))
-                logger.debug(f"Published status info response: {response}")
-            
-            elif msg.topic == TOPIC_STATUS:
-                # Send current status with 2 significant digits
-                response = {
-                    "Vb": float(f"{self.Vb:.2f}"),  # Battery voltage from ADC
-                    "mock_status": MOCK_STATUS
-                }
-                self.client.publish(TOPIC_RESPONSE, json.dumps(response))
-                logger.debug(f"Published status response: {response}")
+                logger.debug(f"Published {action} response: {response}")
             elif msg.topic == TOPIC_CONTROL:
                 # Handle control messages
                 data = json.loads(msg.payload.decode())
@@ -195,6 +189,13 @@ class PiServer:
                         setattr(self, key, value)
         except Exception as e:
             logger.error(f"Error processing message: {e}")
+
+    def get_status(self):
+        return {
+            'Vb': self.Vb,
+            'distance': self.last_distance,
+            'mock_status': MOCK_STATUS
+        }
 
     def start(self):
         """Start the MQTT client and connect to broker"""
