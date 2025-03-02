@@ -10,7 +10,7 @@ from gpio_functions import led  # Import LED from gpio_functions
 
 # Get logger for this module
 logger = logging.getLogger('picar-x.server')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 MOCK_STATUS = {
     'gpio': False,        # GPIO/Motors mock status
@@ -121,8 +121,12 @@ class PiServer:
 
     def on_message(self, client, userdata, msg):
         try:
-            logger.debug(f"--- Received Message: {msg.topic} ---")
+            logger.debug(f"--- Received Message: {msg.topic} : {msg.payload} ---")
             if msg.topic == TOPIC_STATUS:
+                if msg.payload == b'offline':
+                    logger.debug("--- Offline ---")
+                    self.px.stop()
+                    return
                 data = json.loads(msg.payload.decode())
                 action = data.get('command', '')
                 
@@ -182,11 +186,12 @@ class PiServer:
                         # print(f"Pan: {pan_angle:.0f}, Tilt: {tilt_angle:.0f}")
                     except Exception as e:
                         logger.error(f"Error handling camera control: {e}")
-                
+
                 # Update other values based on control message
                 for key, value in data.items():
                     if hasattr(self, key):
                         setattr(self, key, value)
+            
         except Exception as e:
             logger.error(f"Error processing message: {e}")
 

@@ -39,7 +39,7 @@ setup_logging()
 
 # Configure module logger
 logger = logging.getLogger('picar-x.buttons')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 # Initialize GPIO
 setup_gpio()

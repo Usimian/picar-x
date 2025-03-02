@@ -25,7 +25,7 @@ WEB_DISPLAY_HOST = '192.168.1.167'  # Display host for URLs
 
 # Get logger for this module
 logger = logging.getLogger('picar-x.video')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 class TestPatternHandler(BaseHTTPRequestHandler):
     """HTTP request handler for serving test pattern"""
