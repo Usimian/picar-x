@@ -65,7 +65,7 @@ def run_servers():
 
         # Set up signal handler for this process
         def signal_handler(sig, frame):
-            cleanup()  # Use the global cleanup
+            # cleanup()  # Use the global cleanup
             sys.exit(0)
             
         signal.signal(signal.SIGINT, signal_handler)
