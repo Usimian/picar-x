@@ -25,7 +25,7 @@ WEB_DISPLAY_HOST = '192.168.1.167'  # Display host for URLs
 
 # Get logger for this module
 logger = logging.getLogger('picar-x.video')
-logger.setLevel(logging.INFO)
+logger.setLevel(logging.DEBUG)
 
 class TestPatternHandler(BaseHTTPRequestHandler):
     """HTTP request handler for serving test pattern"""
@@ -42,6 +42,12 @@ class TestPatternHandler(BaseHTTPRequestHandler):
                         sleep(0.033)
                         continue
                     
+                    # Add validation check for frame
+                    if not isinstance(self.server.frame, np.ndarray):
+                        logger.error("Invalid frame format")
+                        sleep(0.033)
+                        continue
+                        
                     # Convert frame to JPEG
                     img = Image.fromarray(cv2.cvtColor(self.server.frame, cv2.COLOR_BGR2RGB))
                     img_bytes = io.BytesIO()
@@ -220,6 +226,23 @@ class VideoServer:
                 try:
                     # Try to start camera with default resolution
                     self.vilib.camera_start(vflip=self.vflip, hflip=self.hflip)
+                    
+                    # Add a delay to ensure camera is fully initialized
+                    logger.info("Waiting for camera to initialize...")
+                    sleep(2)
+                    
+                    # Verify that flask_img is properly initialized
+                    if not hasattr(self.vilib, 'flask_img') or self.vilib.flask_img is None:
+                        logger.warning("Camera initialized but flask_img is not available")
+                        raise Exception("Camera failed to initialize properly")
+                    
+                    # Additional check to ensure flask_img is a valid numpy array
+                    if hasattr(self.vilib, 'flask_img'):
+                        if not isinstance(self.vilib.flask_img, np.ndarray):
+                            logger.warning(f"flask_img is not a numpy array: {type(self.vilib.flask_img)}")
+                            raise Exception("Camera frame is in invalid format")
+                    
+                    logger.info("Camera initialized successfully")
                 except Exception as camera_error:
                     logger.warning(f"Camera not available: {camera_error}")
                     logger.info("Falling back to test pattern")
