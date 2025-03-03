@@ -10,7 +10,7 @@ from gpio_functions import setup_gpio, cleanup_gpio, button, led
 
 # Get logger for this module
 logger = logging.getLogger('picar-x.test')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 # Initialize GPIO
 setup_gpio()

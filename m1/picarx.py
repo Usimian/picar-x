@@ -1,3 +1,6 @@
+"""
+This file is from SunFounder.
+"""
 import time
 import os
 import getpass

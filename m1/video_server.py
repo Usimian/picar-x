@@ -25,7 +25,7 @@ WEB_DISPLAY_HOST = '192.168.1.167'  # Display host for URLs
 
 # Get logger for this module
 logger = logging.getLogger('picar-x.video')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 class TestPatternHandler(BaseHTTPRequestHandler):
     """HTTP request handler for serving test pattern"""
@@ -134,6 +134,8 @@ class VideoServer:
         
         # Check vilib availability
         self.has_vilib, self.Vilib = self._check_vilib_available()
+        # self.has_vilib = False
+        # self.Vilib = None
         self.using_test_pattern = not self.has_vilib
 
         # Use MockVilib if real Vilib is not available
@@ -141,6 +143,9 @@ class VideoServer:
         
         # Thread for test pattern updates
         self._test_pattern_thread = None
+        
+        # Store the test pattern image once generated
+        self._test_pattern_image = None
     
     def _check_vilib_available(self):
         """Check if vilib is available and return appropriate video handler
@@ -198,12 +203,20 @@ class VideoServer:
 
     def _update_test_pattern(self):
         """Update test pattern in a loop"""
-        logger.info("Starting test pattern update loop")
+        logger.info("Starting test pattern display loop")
+        
+        # Generate the test pattern only once
+        if self._test_pattern_image is None:
+            self._test_pattern_image = self.generate_test_pattern()
+            
+        # Set the initial frame
+        self.vilib.frame = self._test_pattern_image
+        if self.vilib._web_server:
+            self.vilib._web_server.frame = self.vilib.frame
+            
         while self.running:
             try:
-                self.vilib.frame = self.generate_test_pattern()
-                if self.vilib._web_server:
-                    self.vilib._web_server.frame = self.vilib.frame
+                # Just display the existing pattern, don't regenerate it
                 if self.enable_local and not HEADLESS:
                     cv2.imshow('Test Pattern', self.vilib.frame)
                     if cv2.waitKey(1) & 0xFF == ord('q'):
@@ -250,9 +263,9 @@ class VideoServer:
                     self.vilib = MockVilib
             
             if self.using_test_pattern:
-                # Initialize with test pattern
-                test_pattern = self.generate_test_pattern()
-                self.vilib.frame = test_pattern
+                # Generate test pattern once and store it
+                self._test_pattern_image = self.generate_test_pattern()
+                self.vilib.frame = self._test_pattern_image
                 # Update mock status to indicate test pattern is in use
                 try:
                     from server import MOCK_STATUS
