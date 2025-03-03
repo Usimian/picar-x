@@ -10,7 +10,7 @@ from gpio_functions import led  # Import LED from gpio_functions
 
 # Get logger for this module
 logger = logging.getLogger('picar-x.server')
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 
 MOCK_STATUS = {
     'gpio': False,        # GPIO/Motors mock status

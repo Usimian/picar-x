@@ -1,0 +1,12 @@
+---
+description: Rules for m1 Picar project
+globs: 
+alwaysApply: false
+---
+
+# Your rule content
+
+Use Python 3.11 or greater for coding
+This project is for a Raspberry Pi 5
+Do not look at the folders: docs, example, gpt_examples, musics and sounds
+The /home/mw/robot-hat folder contains hardware code

@@ -48,17 +48,19 @@ class TestPatternHandler(BaseHTTPRequestHandler):
                     img.save(img_bytes, format='JPEG')
                     frame_data = img_bytes.getvalue()
                     
-                    # Send frame
+                    # Send frame with proper MIME multipart format
                     self.wfile.write(b'--frame\r\n')
-                    self.send_header('Content-type', 'image/jpeg')
-                    self.send_header('Content-length', len(frame_data))
-                    self.end_headers()
+                    self.wfile.write(b'Content-Type: image/jpeg\r\n')
+                    self.wfile.write(f'Content-Length: {len(frame_data)}\r\n\r\n'.encode())
                     self.wfile.write(frame_data)
                     self.wfile.write(b'\r\n')
                     sleep(0.033)  # ~30 fps
+            except BrokenPipeError:
+                logger.info("Client disconnected")  # Expected behavior
+            except ConnectionResetError:
+                logger.info("Connection reset by client")  # Expected behavior
             except Exception as e:
-                logger.error(f"Error in video streaming: {e}")
-                pass
+                logger.error(f"Unexpected error in video streaming: {e}")
         else:
             self.send_response(404)
             self.end_headers()
@@ -66,6 +68,7 @@ class TestPatternHandler(BaseHTTPRequestHandler):
 class ThreadedHTTPServer(socketserver.ThreadingMixIn, HTTPServer):
     """Handle requests in a separate thread"""
     daemon_threads = True
+    timeout = 60  # Longer timeout for connections
 
 class MockVilib:
     """Mock Vilib class for test pattern mode"""
