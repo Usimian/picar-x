@@ -30,7 +30,6 @@ logger.setLevel(logging.INFO)
 class TestPatternHandler(BaseHTTPRequestHandler):
     """HTTP request handler for serving test pattern"""
     def do_GET(self):
-        logger.info(f"Received request for {self.path}")
         if self.path == '/mjpg':
             self.send_response(200)
             self.send_header('Content-type', 'multipart/x-mixed-replace; boundary=--frame')
@@ -202,9 +201,6 @@ class VideoServer:
         return pattern
 
     def _update_test_pattern(self):
-        """Update test pattern in a loop"""
-        logger.info("Starting test pattern display loop")
-        
         # Generate the test pattern only once
         if self._test_pattern_image is None:
             self._test_pattern_image = self.generate_test_pattern()

@@ -54,6 +54,8 @@ class PiServer:
         self.Vb = 0
         self.Pos = 0
         self.last_distance = 0.0  # Track last measured distance
+        self.current_direction = 0  # 1 for forward, -1 for backward, 0 for stopped
+        self.requested_speed = 0  # Store the last requested speed for resuming
         
         self.setup_mqtt()   # Setup MQTT client
         
@@ -96,10 +98,28 @@ class PiServer:
 
     def _update_distance(self):
         """Update distance measurement in a loop"""
+        was_stopped_by_distance = False
+        
         while self.running:
             try:
                 if self.px:
                     self.last_distance = self.px.get_distance()
+                    
+                    # Emergency stop for forward movement when distance is less than 10
+                    if self.last_distance < 10 and self.current_direction > 0:
+                        self.px.stop()
+                        self.current_direction = 0  # Set direction to stopped
+                        was_stopped_by_distance = True
+                        logger.debug(f"Emergency stop: Distance {self.last_distance:.0f} < 10")
+                    
+                    # Resume forward movement if we were previously stopped by distance
+                    # and the distance is now safe
+                    elif self.last_distance >= 10 and was_stopped_by_distance and self.requested_speed > 0:
+                        self.px.forward(self.requested_speed)
+                        self.current_direction = 1  # Set direction to forward
+                        was_stopped_by_distance = False
+                        logger.debug(f"Resuming forward movement: Distance {self.last_distance:.0f} >= 10")
+                        
             except Exception as e:
                 logger.error(f"Error updating distance: {e}")
             time.sleep(0.1)  # Update 10 times per second
@@ -146,27 +166,38 @@ class PiServer:
                 # Handle motor control if x or y is present
                 if ('speed' in data or 'turn' in data) and self.px is not None:
                     try:
-                        x = data.get('turn', 0)  # For steering
-                        y = data.get('speed', 0)  # For forward/backward movement
-                        
-                        # Convert x to steering angle (-40 to 40 degrees)
-                        # Assuming x is in range -100 to 100
-                        steering_angle = x * 20 # +/- 15 degrees
+                        x = data.get('turn', 0) # For steering (-1 to +1)
+                        y = data.get('speed', 0)  # For forward/backward movement (-1 to +1)
+
+                        # Convert x to steering angle
+                        steering_angle = x * 20 
                         
                         # Set steering angle using servo 3
                         self.px.set_dir_servo_angle(steering_angle)
                         
                         # Convert y to motor speed (-100 to 100)
-                        # Negative y means forward, positive y means backward
-                        # Assuming y is in range -100 to 100
-                        motor_speed = y*100.0
-                        if motor_speed > 0 and self.last_distance > 10:
-                            self.px.forward(motor_speed)
+                        motor_speed = y * 100.0
+                        
+                        # Only allow forward movement if distance is safe
+                        if motor_speed > 0:
+                            # Store the requested speed for potential resume
+                            self.requested_speed = motor_speed
+                            
+                            if self.last_distance > 10:
+                                self.px.forward(motor_speed)
+                                self.current_direction = 1  # Set direction to forward
+                            else:
+                                self.px.stop()
+                                self.current_direction = 0  # Set direction to stopped
                         elif motor_speed < 0:
+                            # Always allow reverse movement
+                            self.requested_speed = 0  # Clear requested forward speed when reversing
                             self.px.backward(abs(motor_speed))
+                            self.current_direction = -1  # Set direction to backward
                         else:
+                            self.requested_speed = 0  # Clear requested forward speed when stopping
                             self.px.stop()
-                        # print(f"Steering: {steering_angle:.0f}°, Speed: {motor_speed:.0f}")
+                            self.current_direction = 0  # Set direction to stopped
                     except Exception as e:
                         logger.error(f"Error handling motor control: {e}")
                 
